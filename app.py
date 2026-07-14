@@ -1,16 +1,15 @@
 import streamlit as st
-import yt_dlp
+import requests
 import os
-import glob
 from google.oauth2 import service_account
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-# 1. Setup Google Drive API Connection
+# 1. API Configurations
 FOLDER_ID = "1irOJjYYCQPFDRWaEXjfl052d-Rpa2kGf"
+COBALT_API_URL = "https://api.cobalt.tools/api/json"
 
 def get_drive_service():
-    # Streamlit secrets will securely hold your JSON key credentials
     gcp_info = st.secrets["gcp_service_account"]
     credentials = service_account.Credentials.from_service_account_info(gcp_info)
     return build('drive', 'v3', credentials=credentials)
@@ -28,7 +27,6 @@ st.write("Paste a link below to send the video to Google Drive or download it di
 
 video_url = st.text_input("Enter Video URL:", placeholder="https://www.youtube.com/watch?v=...")
 
-# Initialize session state tracking for local downloads
 if "local_file_data" not in st.session_state:
     st.session_state.local_file_data = None
 if "local_file_name" not in st.session_state:
@@ -36,107 +34,85 @@ if "local_file_name" not in st.session_state:
 if "prev_url" not in st.session_state:
     st.session_state.prev_url = ""
 
-# Automatically clear cache if the user changes the link
 if video_url != st.session_state.prev_url:
     st.session_state.local_file_data = None
     st.session_state.local_file_name = None
     st.session_state.prev_url = video_url
 
-# Arrange buttons neatly side-by-side
+def fetch_video_via_cobalt(url):
+    """Hits the free open-source Cobalt API to extract the video."""
+    headers = {
+        "Accept": "application/json",
+        "Content-Type": "application/json",
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+    }
+    payload = {
+        "url": url,
+        "videoQuality": "1080",
+        "filenameStyle": "basic"
+    }
+    
+    # Request the download link from Cobalt
+    response = requests.post(COBALT_API_URL, headers=headers, json=payload)
+    response.raise_for_status()
+    json_response = response.json()
+    
+    direct_mp4_link = json_response.get("url") 
+    
+    if not direct_mp4_link or json_response.get("status") == "error":
+        error_text = json_response.get('text', 'Unknown Cobalt API error')
+        raise Exception(f"Cobalt failed to extract video: {error_text}")
+        
+    # Download the actual video file from the provided link
+    video_data = requests.get(direct_mp4_link).content
+    
+    # Generate a simple filename based on the YouTube ID
+    video_id = url.split("/")[-1].split("?")[0]
+    clean_name = f"video_{video_id}.mp4"
+    
+    return video_data, clean_name
+
 col1, col2 = st.columns(2)
 
-# --- BUTTON 1: DOWNLOAD & UPLOAD TO DRIVE ---
+# --- BUTTON 1: UPLOAD TO DRIVE ---
 with col1:
     if st.button("🚀 Download & Upload to Drive", use_container_width=True):
         if video_url:
-            with st.spinner("Processing for Google Drive..."):
+            with st.spinner("Extracting via Cobalt API and uploading..."):
                 try:
-                    ydl_opts = {
-                        'outtmpl': '%(id)s.%(ext)s',
-                        'format': 'best',
-                        'extractor_args': {'youtube': {'player_client': ['ios', 'android_creator', 'web']}},
-                        'nocheckcertificate': True,
-                        'sleep_interval': 1,
-                        'max_sleep_interval': 3,
-                    }
+                    video_bytes, clean_name = fetch_video_via_cobalt(video_url)
                     
-                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                        info = ydl.extract_info(video_url, download=True)
-                        if not info:
-                            raise Exception("Download blocked or failed.")
+                    # Save temporarily to server to upload to Drive
+                    temp_filename = "temp_video.mp4"
+                    with open(temp_filename, "wb") as f:
+                        f.write(video_bytes)
                         
-                        video_id = info.get('id')
-                        downloaded_files = glob.glob(f"{video_id}.*")
-                        if not downloaded_files:
-                            raise FileNotFoundError("The video file was not found on the server.")
+                    upload_to_drive(temp_filename, clean_name)
+                    
+                    if os.path.exists(temp_filename):
+                        os.remove(temp_filename)
                         
-                        filename = downloaded_files[0]
-                        ext = filename.split('.')[-1]
-                        raw_title = info.get('title', video_id)
-                        clean_title = "".join(c for c in raw_title if c.isalnum() or c in " ._-()")
-                        drive_name = f"{clean_title}.{ext}"
-                    
-                    st.info("Video downloaded. Uploading to Google Drive...")
-                    upload_to_drive(filename, drive_name)
-                    
-                    if os.path.exists(filename):
-                        os.remove(filename)
-                        
-                    st.success(f"🎉 Success! '{drive_name}' has been saved to your Google Drive.")
-                    
+                    st.success(f"🎉 Success! '{clean_name}' saved to Google Drive.")
                 except Exception as e:
-                    st.error(f"An error occurred: {e}")
+                    st.error(f"Error: {e}")
         else:
-            st.warning("Please enter a valid link first.")
+            st.warning("Please enter a valid link.")
 
-# --- BUTTON 2: FETCH FOR LOCAL DEVICE DOWNLOAD ---
+# --- BUTTON 2: LOCAL DOWNLOAD ---
 with col2:
     if st.button("📥 Fetch for Local Download", use_container_width=True):
         if video_url:
-            with st.spinner("Fetching video from YouTube..."):
+            with st.spinner("Extracting via Cobalt API..."):
                 try:
-                    ydl_opts = {
-                        'outtmpl': '%(id)s.%(ext)s',
-                        'format': 'best',
-                        'extractor_args': {'youtube': {'player_client': ['ios', 'android_creator', 'web']}},
-                        'nocheckcertificate': True,
-                        'sleep_interval': 1,
-                        'max_sleep_interval': 3,
-                    }
-                    
-                    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
-                        info = ydl.extract_info(video_url, download=True)
-                        if not info:
-                            raise Exception("Download blocked or failed.")
-                        
-                        video_id = info.get('id')
-                        downloaded_files = glob.glob(f"{video_id}.*")
-                        if not downloaded_files:
-                            raise FileNotFoundError("The video file was not found on the server.")
-                        
-                        filename = downloaded_files[0]
-                        ext = filename.split('.')[-1]
-                        raw_title = info.get('title', video_id)
-                        clean_title = "".join(c for c in raw_title if c.isalnum() or c in " ._-()")
-                        drive_name = f"{clean_title}.{ext}"
-                    
-                    # Read the binary data into the session state memory
-                    with open(filename, "rb") as f:
-                        st.session_state.local_file_data = f.read()
-                    st.session_state.local_file_name = drive_name
-                    
-                    # Clean up the cloud server storage immediately
-                    if os.path.exists(filename):
-                        os.remove(filename)
-                        
+                    video_bytes, clean_name = fetch_video_via_cobalt(video_url)
+                    st.session_state.local_file_data = video_bytes
+                    st.session_state.local_file_name = clean_name
                     st.success("✨ Video successfully prepared!")
-                    
                 except Exception as e:
-                    st.error(f"An error occurred: {e}")
+                    st.error(f"Error: {e}")
         else:
-            st.warning("Please enter a valid link first.")
+            st.warning("Please enter a valid link.")
 
-# --- RENDER BROWSER DOWNLOAD LINK IF READY ---
 if st.session_state.local_file_data:
     st.write("---")
     st.download_button(
