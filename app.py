@@ -7,7 +7,7 @@ from googleapiclient.http import MediaFileUpload
 
 # 1. API Configurations
 FOLDER_ID = "1irOJjYYCQPFDRWaEXjfl052d-Rpa2kGf"
-COBALT_API_URL = "https://cobalt-tools-production-7216.up.railway.app/"
+COBALT_API_URL = "https://cobalt.meowing.de/"
 
 def get_drive_service():
     # Use OAuth2 instead of a Service Account to utilize your personal storage quota
