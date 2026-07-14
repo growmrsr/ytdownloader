@@ -1,16 +1,14 @@
 import streamlit as st
-import requests
 import os
+from pytubefix import YouTube
 from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
-# 1. API Configurations
+# 1. API & Folder Configurations
 FOLDER_ID = "1irOJjYYCQPFDRWaEXjfl052d-Rpa2kGf"
-COBALT_API_URL = "https://api.cobalt.pewpew.moe/"
 
 def get_drive_service():
-    # Use OAuth2 instead of a Service Account to utilize your personal storage quota
     oauth_info = st.secrets["gcp_oauth"]
     creds = Credentials(
         token=None,
@@ -34,6 +32,7 @@ st.write("Paste a link below to send the video to Google Drive or download it di
 
 video_url = st.text_input("Enter Video URL:", placeholder="https://www.youtube.com/watch?v=...")
 
+# Initialize session states for storing file bytes cleanly inside Streamlit
 if "local_file_data" not in st.session_state:
     st.session_state.local_file_data = None
 if "local_file_name" not in st.session_state:
@@ -41,51 +40,38 @@ if "local_file_name" not in st.session_state:
 if "prev_url" not in st.session_state:
     st.session_state.prev_url = ""
 
+# Reset state if the user pastes a new URL link
 if video_url != st.session_state.prev_url:
     st.session_state.local_file_data = None
     st.session_state.local_file_name = None
     st.session_state.prev_url = video_url
 
-def fetch_video_via_cobalt(url):
-    """Hits the specified Cobalt API instance to extract the video."""
-    api_headers = {
-        "Accept": "application/json",
-        "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
-    }
-    
-    # The "alwaysProxy": True is MANDATORY to prevent 0 KB files!
-    payload = {
-        "url": url,
-        "videoQuality": "1080",
-        "alwaysProxy": True 
-    }
-    
-    response = requests.post(COBALT_API_URL, headers=api_headers, json=payload)
-    
-    if response.status_code != 200:
-        raise Exception(f"Cobalt API Error {response.status_code}: {response.text}")
+def download_video_via_pytubefix(url):
+    """Downloads highest resolution progressive MP4 stream directly using pytubefix."""
+    try:
+        # Initializing the YouTube handler object
+        yt = YouTube(url)
         
-    json_response = response.json()
-    direct_mp4_link = json_response.get("url") 
-    
-    if not direct_mp4_link or json_response.get("status") == "error":
-        error_text = json_response.get('text', 'Unknown Cobalt API error')
-        raise Exception(f"Cobalt failed to extract video: {error_text}")
+        # Grabbing the highest resolution progressive stream (contains both video and audio tracks)
+        stream = yt.streams.get_highest_resolution()
+        if not stream:
+            raise Exception("No stable progressive video stream found.")
+            
+        clean_name = f"{yt.title}.mp4".replace("/", "_").replace("\\", "_")
         
-    video_request = requests.get(direct_mp4_link, headers={"User-Agent": api_headers["User-Agent"]})
-    video_request.raise_for_status() 
-    
-    video_data = video_request.content
-    
-    # Safety check to prevent uploading empty files
-    if len(video_data) < 1000:
-        raise Exception("Downloaded file is empty or corrupted (0 KB).")
-    
-    video_id = url.split("/")[-1].split("?")[0]
-    clean_name = f"video_{video_id}.mp4"
-    
-    return video_data, clean_name
+        # Download file directly to local instance storage environment
+        temp_path = stream.download(output_path=".", filename="temp_download_target.mp4")
+        
+        with open(temp_path, "rb") as f:
+            video_bytes = f.read()
+            
+        # Clean up local system storage immediately
+        if os.path.exists(temp_path):
+            os.remove(temp_path)
+            
+        return video_bytes, clean_name
+    except Exception as e:
+        raise Exception(f"Pytubefix processing failed: {str(e)}")
 
 col1, col2 = st.columns(2)
 
@@ -93,9 +79,9 @@ col1, col2 = st.columns(2)
 with col1:
     if st.button("🚀 Download & Upload to Drive", use_container_width=True):
         if video_url:
-            with st.spinner("Extracting via Cobalt API and uploading to Drive..."):
+            with st.spinner("Processing video and uploading to Google Drive..."):
                 try:
-                    video_bytes, clean_name = fetch_video_via_cobalt(video_url)
+                    video_bytes, clean_name = download_video_via_pytubefix(video_url)
                     
                     temp_filename = "temp_video.mp4"
                     with open(temp_filename, "wb") as f:
@@ -116,9 +102,9 @@ with col1:
 with col2:
     if st.button("📥 Fetch for Local Download", use_container_width=True):
         if video_url:
-            with st.spinner("Extracting via Cobalt API..."):
+            with st.spinner("Processing video..."):
                 try:
-                    video_bytes, clean_name = fetch_video_via_cobalt(video_url)
+                    video_bytes, clean_name = download_video_via_pytubefix(video_url)
                     st.session_state.local_file_data = video_bytes
                     st.session_state.local_file_name = clean_name
                     st.success("✨ Video successfully prepared!")
@@ -127,6 +113,7 @@ with col2:
         else:
             st.warning("Please enter a valid link.")
 
+# Displays secondary download trigger if local data preparation succeeded
 if st.session_state.local_file_data:
     st.write("---")
     st.download_button(
