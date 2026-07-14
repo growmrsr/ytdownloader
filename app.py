@@ -47,15 +47,14 @@ if video_url != st.session_state.prev_url:
     st.session_state.prev_url = video_url
 
 def download_video_via_pytubefix(url):
-    """Downloads highest resolution progressive MP4 stream by masking as a different client to bypass 403 blocks."""
+    """Downloads highest resolution progressive MP4 stream using mobile web signatures to bypass blocks."""
     try:
-        # We turn off use_oauth to prevent the app from freezing up!
-        # Instead, we force pytubefix to act like an Android VR system to mask cloud IPs
+        # Switch the primary client to MWEB (Mobile Web format), which cleanly bypasses the token wall
         yt = YouTube(
             url,
             use_oauth=False,
             allow_oauth_cache=False,
-            client='ANDROID_VR'
+            client='MWEB'
         )
         
         # Grabbing the highest resolution progressive stream (contains both video and audio tracks)
@@ -77,9 +76,9 @@ def download_video_via_pytubefix(url):
             
         return video_bytes, clean_name
     except Exception as e:
-        # If ANDROID_VR fails, try a secondary fallback client signature (WEB_EMBED)
+        # Secondary fallback if MWEB drops out (WEB_CREATOR)
         try:
-            yt = YouTube(url, use_oauth=False, allow_oauth_cache=False, client='WEB_EMBED')
+            yt = YouTube(url, use_oauth=False, allow_oauth_cache=False, client='WEB_CREATOR')
             stream = yt.streams.get_highest_resolution()
             clean_name = f"{yt.title}.mp4".replace("/", "_").replace("\\", "_")
             temp_path = stream.download(output_path=".", filename="temp_download_target.mp4")
