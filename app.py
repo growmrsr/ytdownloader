@@ -47,31 +47,41 @@ if video_url != st.session_state.prev_url:
     st.session_state.prev_url = video_url
 
 def fetch_video_via_cobalt(url):
-    """Hits your private Cobalt API instance on Railway to extract the video."""
-    headers = {
+    """Hits the specified Cobalt API instance to extract the video."""
+    api_headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
         "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     }
+    
+    # The "alwaysProxy": True is MANDATORY to prevent 0 KB files!
     payload = {
         "url": url,
-        "videoQuality": "1080"
+        "videoQuality": "1080",
+        "alwaysProxy": True 
     }
     
-    response = requests.post(COBALT_API_URL, headers=headers, json=payload)
+    response = requests.post(COBALT_API_URL, headers=api_headers, json=payload)
     
     if response.status_code != 200:
         raise Exception(f"Cobalt API Error {response.status_code}: {response.text}")
         
     json_response = response.json()
-    
     direct_mp4_link = json_response.get("url") 
     
     if not direct_mp4_link or json_response.get("status") == "error":
         error_text = json_response.get('text', 'Unknown Cobalt API error')
         raise Exception(f"Cobalt failed to extract video: {error_text}")
         
-    video_data = requests.get(direct_mp4_link).content
+    video_request = requests.get(direct_mp4_link, headers={"User-Agent": api_headers["User-Agent"]})
+    video_request.raise_for_status() 
+    
+    video_data = video_request.content
+    
+    # Safety check to prevent uploading empty files
+    if len(video_data) < 1000:
+        raise Exception("Downloaded file is empty or corrupted (0 KB).")
+    
     video_id = url.split("/")[-1].split("?")[0]
     clean_name = f"video_{video_id}.mp4"
     
