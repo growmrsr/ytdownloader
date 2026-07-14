@@ -7,7 +7,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
 # 1. Setup Google Drive API Connection
-FOLDER_ID = "YOUR_SHARED_GOOGLE_DRIVE_FOLDER_ID_HERE"
+FOLDER_ID = "https://drive.google.com/drive/folders/1irOJjYYCQPFDRWaEXjfl052d-Rpa2kGf?usp=drive_link"
 
 def get_drive_service():
     # Streamlit secrets will securely hold your JSON key credentials
