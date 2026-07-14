@@ -1,17 +1,25 @@
 import streamlit as st
 import requests
 import os
-from google.oauth2 import service_account
+from google.oauth2.credentials import Credentials
 from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
 # 1. API Configurations
 FOLDER_ID = "1irOJjYYCQPFDRWaEXjfl052d-Rpa2kGf"
 COBALT_API_URL = "https://cobalt-tools-production-7216.up.railway.app/"
+
 def get_drive_service():
-    gcp_info = st.secrets["gcp_service_account"]
-    credentials = service_account.Credentials.from_service_account_info(gcp_info)
-    return build('drive', 'v3', credentials=credentials)
+    # Use OAuth2 instead of a Service Account to utilize your personal storage quota
+    oauth_info = st.secrets["gcp_oauth"]
+    creds = Credentials(
+        token=None,
+        refresh_token=oauth_info["refresh_token"],
+        token_uri="https://oauth2.googleapis.com/token",
+        client_id=oauth_info["client_id"],
+        client_secret=oauth_info["client_secret"]
+    )
+    return build('drive', 'v3', credentials=creds)
 
 def upload_to_drive(file_path, file_name):
     service = get_drive_service()
@@ -39,7 +47,7 @@ if video_url != st.session_state.prev_url:
     st.session_state.prev_url = video_url
 
 def fetch_video_via_cobalt(url):
-    """Hits the free open-source Cobalt API to extract the video."""
+    """Hits your private Cobalt API instance on Railway to extract the video."""
     headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
@@ -75,7 +83,7 @@ col1, col2 = st.columns(2)
 with col1:
     if st.button("🚀 Download & Upload to Drive", use_container_width=True):
         if video_url:
-            with st.spinner("Extracting via Cobalt API and uploading..."):
+            with st.spinner("Extracting via Cobalt API and uploading to Drive..."):
                 try:
                     video_bytes, clean_name = fetch_video_via_cobalt(video_url)
                     
