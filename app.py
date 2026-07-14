@@ -7,7 +7,7 @@ from googleapiclient.http import MediaFileUpload
 
 # 1. API Configurations
 FOLDER_ID = "1irOJjYYCQPFDRWaEXjfl052d-Rpa2kGf"
-COBALT_API_URL = "https://api.cobalt.tools/api/json"
+COBALT_API_URL = "https://api.cobalt.tools/"
 
 def get_drive_service():
     gcp_info = st.secrets["gcp_service_account"]
@@ -44,17 +44,18 @@ def fetch_video_via_cobalt(url):
     headers = {
         "Accept": "application/json",
         "Content-Type": "application/json",
-        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
+        "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0.0.0 Safari/537.36"
     }
     payload = {
         "url": url,
-        "videoQuality": "1080",
-        "filenameStyle": "basic"
+        "videoQuality": "1080"
     }
     
-    # Request the download link from Cobalt
     response = requests.post(COBALT_API_URL, headers=headers, json=payload)
-    response.raise_for_status()
+    
+    if response.status_code != 200:
+        raise Exception(f"Cobalt API Error {response.status_code}: {response.text}")
+        
     json_response = response.json()
     
     direct_mp4_link = json_response.get("url") 
@@ -63,10 +64,7 @@ def fetch_video_via_cobalt(url):
         error_text = json_response.get('text', 'Unknown Cobalt API error')
         raise Exception(f"Cobalt failed to extract video: {error_text}")
         
-    # Download the actual video file from the provided link
     video_data = requests.get(direct_mp4_link).content
-    
-    # Generate a simple filename based on the YouTube ID
     video_id = url.split("/")[-1].split("?")[0]
     clean_name = f"video_{video_id}.mp4"
     
@@ -82,7 +80,6 @@ with col1:
                 try:
                     video_bytes, clean_name = fetch_video_via_cobalt(video_url)
                     
-                    # Save temporarily to server to upload to Drive
                     temp_filename = "temp_video.mp4"
                     with open(temp_filename, "wb") as f:
                         f.write(video_bytes)
