@@ -6,7 +6,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
 # 1. Setup Google Drive API Connection
-FOLDER_ID = "https://drive.google.com/drive/folders/1irOJjYYCQPFDRWaEXjfl052d-Rpa2kGf?usp=drive_link"
+FOLDER_ID = "https://drive.google.com/drive/u/0/folders/1irOJjYYCQPFDRWaEXjfl052d-Rpa2kGf"
 
 def get_drive_service():
     # Streamlit secrets will securely hold your JSON key credentials
@@ -32,10 +32,9 @@ if st.button("Download & Upload"):
         with st.spinner("Processing... This might take a minute for large files."):
             try:
                 # Download file locally to the hosting server
-               ydl_opts = {
+                ydl_opts = {
                     'outtmpl': '%(title)s.%(ext)s',
                     'format': 'best',
-                    # These arguments help bypass YouTube's server blocks
                     'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
                     'nocheckcertificate': True,
                     'ignoreerrors': True
