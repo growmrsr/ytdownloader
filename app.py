@@ -32,9 +32,13 @@ if st.button("Download & Upload"):
         with st.spinner("Processing... This might take a minute for large files."):
             try:
                 # Download file locally to the hosting server
-                ydl_opts = {
-                    'outtmpl': 'downloads/%(title)s.%(ext)s',
+               ydl_opts = {
+                    'outtmpl': '%(title)s.%(ext)s',
                     'format': 'best',
+                    # These arguments help bypass YouTube's server blocks
+                    'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
+                    'nocheckcertificate': True,
+                    'ignoreerrors': True
                 }
                 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
