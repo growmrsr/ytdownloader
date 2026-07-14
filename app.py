@@ -47,13 +47,15 @@ if video_url != st.session_state.prev_url:
     st.session_state.prev_url = video_url
 
 def download_video_via_pytubefix(url):
-    """Downloads highest resolution progressive MP4 stream with OAuth authentication to bypass 403 blocks."""
+    """Downloads highest resolution progressive MP4 stream by masking as a different client to bypass 403 blocks."""
     try:
-        # Initializing the YouTube handler object with OAuth enabled
+        # We turn off use_oauth to prevent the app from freezing up!
+        # Instead, we force pytubefix to act like an Android VR system to mask cloud IPs
         yt = YouTube(
             url,
-            use_oauth=True,
-            allow_oauth_cache=True
+            use_oauth=False,
+            allow_oauth_cache=False,
+            client='ANDROID_VR'
         )
         
         # Grabbing the highest resolution progressive stream (contains both video and audio tracks)
@@ -75,7 +77,19 @@ def download_video_via_pytubefix(url):
             
         return video_bytes, clean_name
     except Exception as e:
-        raise Exception(f"Pytubefix processing failed: {str(e)}")
+        # If ANDROID_VR fails, try a secondary fallback client signature (WEB_EMBED)
+        try:
+            yt = YouTube(url, use_oauth=False, allow_oauth_cache=False, client='WEB_EMBED')
+            stream = yt.streams.get_highest_resolution()
+            clean_name = f"{yt.title}.mp4".replace("/", "_").replace("\\", "_")
+            temp_path = stream.download(output_path=".", filename="temp_download_target.mp4")
+            with open(temp_path, "rb") as f:
+                video_bytes = f.read()
+            if os.path.exists(temp_path):
+                os.remove(temp_path)
+            return video_bytes, clean_name
+        except Exception as fallback_error:
+            raise Exception(f"Pytubefix processing failed: {str(fallback_error)}")
 
 col1, col2 = st.columns(2)
 
