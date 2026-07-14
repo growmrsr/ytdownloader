@@ -7,8 +7,7 @@ from googleapiclient.http import MediaFileUpload
 
 # 1. API Configurations
 FOLDER_ID = "1irOJjYYCQPFDRWaEXjfl052d-Rpa2kGf"
-COBALT_API_URL = "https://api.cobalt.tools/"
-
+COBALT_API_URL = "https://cobalt-tools-production-7216.up.railway.app/"
 def get_drive_service():
     gcp_info = st.secrets["gcp_service_account"]
     credentials = service_account.Credentials.from_service_account_info(gcp_info)
