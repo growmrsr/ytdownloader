@@ -31,9 +31,9 @@ if st.button("Download & Upload"):
     if video_url:
         with st.spinner("Processing... This might take a minute for large files."):
             try:
-                # Download file locally to the hosting server
+                # 1. Save locally using the Video ID to avoid special character errors
                 ydl_opts = {
-                    'outtmpl': '%(title)s.%(ext)s',
+                    'outtmpl': '%(id)s.%(ext)s',
                     'format': 'best',
                     'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
                     'nocheckcertificate': True,
@@ -42,18 +42,34 @@ if st.button("Download & Upload"):
                 
                 with yt_dlp.YoutubeDL(ydl_opts) as ydl:
                     info = ydl.extract_info(video_url, download=True)
-                    filename = ydl.prepare_filename(info)
-                    clean_name = os.path.basename(filename)
+                    
+                    if not info:
+                        raise Exception("Download blocked. The video might be private or age-restricted.")
+                    
+                    # 2. Get the exact, final filename that was created on the server
+                    if 'requested_downloads' in info and len(info['requested_downloads']) > 0:
+                        filename = info['requested_downloads'][0]['filepath']
+                    else:
+                        filename = ydl.prepare_filename(info)
+                    
+                    # 3. Create a clean, readable name for Google Drive
+                    ext = filename.split('.')[-1]
+                    raw_title = info.get('title', info.get('id', 'Video'))
+                    
+                    # Strip out weird characters but keep letters, numbers, and spaces
+                    clean_title = "".join(c for c in raw_title if c.isalnum() or c in " ._-()")
+                    drive_name = f"{clean_title}.{ext}"
                 
                 st.info("Video downloaded to server. Uploading to Google Drive...")
                 
-                # Upload to Google Drive
-                upload_to_drive(filename, clean_name)
+                # Upload to Google Drive using the clean name
+                upload_to_drive(filename, drive_name)
                 
                 # Clean up server storage
-                os.remove(filename)
+                if os.path.exists(filename):
+                    os.remove(filename)
                 
-                st.success(f"🎉 Success! '{clean_name}' has been saved to your Google Drive.")
+                st.success(f"🎉 Success! '{drive_name}' has been saved to your Google Drive.")
                 
             except Exception as e:
                 st.error(f"An error occurred: {e}")
