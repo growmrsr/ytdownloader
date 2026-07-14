@@ -7,7 +7,7 @@ from googleapiclient.discovery import build
 from googleapiclient.http import MediaFileUpload
 
 # 1. Setup Google Drive API Connection
-FOLDER_ID = "https://drive.google.com/drive/folders/1irOJjYYCQPFDRWaEXjfl052d-Rpa2kGf?usp=drive_link"
+FOLDER_ID = "1irOJjYYCQPFDRWaEXjfl052d-Rpa2kGf"
 
 def get_drive_service():
     # Streamlit secrets will securely hold your JSON key credentials
@@ -54,8 +54,10 @@ with col1:
                     ydl_opts = {
                         'outtmpl': '%(id)s.%(ext)s',
                         'format': 'best',
-                        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
-                        'nocheckcertificate': True
+                        'extractor_args': {'youtube': {'player_client': ['ios', 'android_creator', 'web']}},
+                        'nocheckcertificate': True,
+                        'sleep_interval': 1,
+                        'max_sleep_interval': 3,
                     }
                     
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -96,8 +98,10 @@ with col2:
                     ydl_opts = {
                         'outtmpl': '%(id)s.%(ext)s',
                         'format': 'best',
-                        'extractor_args': {'youtube': {'player_client': ['android', 'web']}},
-                        'nocheckcertificate': True
+                        'extractor_args': {'youtube': {'player_client': ['ios', 'android_creator', 'web']}},
+                        'nocheckcertificate': True,
+                        'sleep_interval': 1,
+                        'max_sleep_interval': 3,
                     }
                     
                     with yt_dlp.YoutubeDL(ydl_opts) as ydl:
