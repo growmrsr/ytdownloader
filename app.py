@@ -47,10 +47,14 @@ if video_url != st.session_state.prev_url:
     st.session_state.prev_url = video_url
 
 def download_video_via_pytubefix(url):
-    """Downloads highest resolution progressive MP4 stream directly using pytubefix."""
+    """Downloads highest resolution progressive MP4 stream with OAuth authentication to bypass 403 blocks."""
     try:
-        # Initializing the YouTube handler object
-        yt = YouTube(url)
+        # Initializing the YouTube handler object with OAuth enabled
+        yt = YouTube(
+            url,
+            use_oauth=True,
+            allow_oauth_cache=True
+        )
         
         # Grabbing the highest resolution progressive stream (contains both video and audio tracks)
         stream = yt.streams.get_highest_resolution()
